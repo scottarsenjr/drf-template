@@ -1,0 +1,69 @@
+import os
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+worker_pid = os.getpid()
+
+dotenv_path = Path.joinpath(Path(__file__).parent.parent.parent.parent.resolve(), '.env.prod')
+
+print(
+    'Loading ENV variables from {env_path} for worker with PID: {worker_pid}'.format(
+        env_path=dotenv_path, worker_pid=worker_pid
+    )
+)
+
+load_dotenv(dotenv_path)
+
+PROTOCOL = os.environ.get('PROTOCOL', 'http')
+DOMAIN = os.environ.get('DOMAIN', 'localhost')
+
+DEBUG = False
+SECRET_KEY = os.getenv('SECRET_KEY', '')
+
+STATIC_ROOT = '/opt/project/static/'
+MEDIA_ROOT = '/opt/project/media/'
+
+MEDIA_URL = f'{PROTOCOL}://{DOMAIN}/media/'
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': 'redis://cache:6379/0',
+        'OPTIONS': {'CLIENT_CLASS': 'django_redis.client.DefaultClient'},
+    },
+    'celery_broker': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': 'redis://cache:6379/1',
+        'OPTIONS': {'CLIENT_CLASS': 'django_redis.client.DefaultClient'},
+    },
+    'celery_cache_backend': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': 'redis://cache:6379/2',
+        'OPTIONS': {'CLIENT_CLASS': 'django_redis.client.DefaultClient'},
+    },
+    'celery_result_backend': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': 'redis://cache:6379/3',
+        'OPTIONS': {'CLIENT_CLASS': 'django_redis.client.DefaultClient'},
+    },
+}
+
+CELERY_BROKER_URL = 'amqp://rabbit:5672'
+CELERY_RESULT_BACKEND = 'redis://cache:6379/4'
+
+
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.environ.get('POSTGRES_DB'),
+        'USER': os.environ.get('POSTGRES_USER'),
+        'PASSWORD': os.environ.get('POSTGRES_PASSWORD'),
+        'HOST': 'db',
+        'PORT': '5432',
+        'ATOMIC_REQUESTS': True,
+        'CONN_MAX_AGE': 600,
+    }
+}
+
+print('Local settings have been exported for worker {worker_pid}'.format(worker_pid=worker_pid))

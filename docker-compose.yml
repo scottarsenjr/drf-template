@@ -1,0 +1,147 @@
+version: '3.9'
+
+services:
+  db:
+    image: postgres:16.0-alpine
+    container_name: postgresql-db
+    restart: unless-stopped
+    ports:
+      - '5432:5432'
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    networks:
+      - api
+    env_file:
+      - ./.env.prod
+    volumes:
+      - postgresql-data:/var/lib/postgresql/data
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin
+    restart: always
+    ports:
+      - '8080'
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+    networks:
+      - api
+    env_file:
+      - .env.prod
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+
+  cache:
+    image: redis:latest
+    container_name: redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    networks:
+      - api
+    volumes:
+      - cache:/data
+
+  rabbit:
+    image: rabbitmq:3.13-management-alpine
+    container_name: rabbit
+    restart: unless-stopped
+    ports:
+      - '5672:5672'
+      - '15672:15672'
+    networks:
+      - api
+
+  django_app:
+    build: .
+    container_name: gunicorn
+    restart: unless-stopped
+    ports:
+      - '8000:8000'
+    depends_on:
+      - db
+      - cache
+    environment:
+      CORESETTINGS_LOCAL_SETTINGS_PATH: 'local/settings.prod.py'
+    volumes:
+      - static:/opt/project/static/
+      - media:/opt/project/media/
+    env_file:
+      - .env.prod
+    networks:
+      - api
+
+  nginx:
+    build: ./nginx
+    container_name: nginx
+    restart: unless-stopped
+    volumes:
+      - static:/static/
+      - media:/media/
+    ports:
+      - '80:80'
+    depends_on:
+      - django_app
+    networks:
+      - api
+
+  celery:
+    build: .
+    container_name: celery
+    entrypoint: ./scripts/celery-entrypoint.sh
+    environment:
+      CORESETTINGS_LOCAL_SETTINGS_PATH: 'local/settings.prod.py'
+    restart: unless-stopped
+    depends_on:
+      - cache
+      - db
+    env_file:
+      - .env.prod
+    networks:
+      - api
+
+  celery-beat:
+    build: .
+    container_name: celery-beat
+    entrypoint: ./scripts/celery-beat-entrypoint.sh
+    environment:
+      CORESETTINGS_LOCAL_SETTINGS_PATH: 'local/settings.prod.py'
+    restart: unless-stopped
+    depends_on:
+      - cache
+      - db
+    env_file:
+      - .env.prod
+    networks:
+      - api
+
+  flower:
+    image: mher/flower:0.9.7
+    container_name: flower-tracker
+    command: ['flower', '--broker=amqp://rabbit:5672', '--port=5555']
+    environment:
+      CORESETTINGS_LOCAL_SETTINGS_PATH: 'local/settings.prod.py'
+    restart: unless-stopped
+    env_file:
+      - .env.prod
+    ports:
+      - '5555:5555'
+    depends_on:
+      - rabbit
+    networks:
+      - api
+
+networks:
+  api:
+    driver: bridge
+
+volumes:
+  postgresql-data:
+    driver: local
+  pgadmin-data:
+  cache:
+  static:
+  media:
