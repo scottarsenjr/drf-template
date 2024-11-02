@@ -24,7 +24,7 @@ class APISchemeGenerator(OpenAPISchemaGenerator):
         other_tags = [
         ]
 
-        desired_order = [AUTHENTICATION_TAG, *model_tags, *sorted(other_tags)]
+        desired_order = [*model_tags, *sorted(other_tags)]
 
         operations_by_tags = defaultdict(list)
         other_operations = []
